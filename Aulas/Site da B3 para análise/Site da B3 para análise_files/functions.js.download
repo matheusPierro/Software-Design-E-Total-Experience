@@ -1,0 +1,192 @@
+async function loadData(url){
+    let result;
+
+    try{
+        result = await $.get(url);
+        return result;
+    }catch(error){
+        console.log('loadDataPaginate-error', error)
+    }
+
+}
+
+function activeIconOrdenation(table){
+    table.find('#icon-sort').remove();
+    const elementTd = table.find('.active-icon-order');
+    const text = elementTd.text();
+    const ordenation = elementTd.data('order');
+    elementTd.data('order', 'ASC');
+    elementTd.text('').html(`${text} <i id="icon-sort" class="fas fa-sort-alpha-down-alt"></i>`);
+    if(ordenation == 'ASC'){
+        elementTd.data('order', 'DESC');
+        elementTd.text('').html(`${text} <i id="icon-sort" class="fas fa-sort-alpha-down"></i>`);
+    }
+}
+
+function validURL(str) {
+    var pattern = new RegExp('((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+
+        '((\\d{1,3}\\.){3}\\d{1,3}))'+
+        '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+
+        '(\\?[;&a-z\\d%_.~+=-]*)?'+
+        '(\\#[-a-z\\d_]*)?$','i');
+    return !!pattern.test(str);
+}
+
+async function checkPermessionTeacherCreateCourse(url, urlTabDataBank) {
+    const isValid = await $.ajax({
+        url: url,
+        type: 'GET',
+        dataType: 'json',
+        success: function (response) {
+
+            if (response.hasPermission) {
+                return true;
+            }
+            swal({
+                text: "Você precisa cadastrar seus dados bancários antes de salvar as informações.",
+                icon: "warning",
+                buttons: ['CANCELAR', 'CLIQUE AQUI PARA ATUALIZAR'],
+            }).then((result) => {
+                if (result) {
+                    window.open(urlTabDataBank,'_blank');
+                }
+            });
+            return false;
+        },
+        error: function (response) {
+            swal('', 'Erro ao buscar os dados', 'error');
+        }
+    });
+    return isValid.hasPermission;
+}
+
+
+function sortTable(table, dir, n) {
+    let rows, switching, i, x, y, shouldSwitch, switchcount = 0 , whileCount = 0;
+    switching = true;
+
+    $(table).find('#icon-sort').remove();
+    $(table).find('.active-icon-order').removeClass('active-icon-order');
+
+    const obgTh = table.rows[0].cells[n];
+    const text = obgTh.innerHTML;
+
+    obgTh.classList.add('active-icon-order');
+
+    while (switching) {
+        switching = false;
+        rows = table.rows;
+
+        for (i = 1; i < (rows.length - 1); i++) {
+            shouldSwitch = false;
+            x = rows[i].getElementsByTagName("TD")[n];
+            y = rows[i + 1].getElementsByTagName("TD")[n];
+
+            x = x.dataset.value == undefined ? x.innerHTML : x.dataset.value;
+            y = y.dataset.value == undefined ? y.innerHTML : y.dataset.value;
+
+
+
+            if (dir == "ASC") {
+                if (x.toLowerCase() > y.toLowerCase()) {
+                    shouldSwitch = true;
+                    break;
+                }
+            } else if (dir == "DESC") {
+                if (x.toLowerCase() < y.toLowerCase()) {
+                    shouldSwitch = true;
+                    break;
+                }
+            }
+        }
+        if (shouldSwitch) {
+            rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+            switching = true;
+            switchcount++;
+        } else {
+            if(dir == "ASC"){
+                obgTh.innerHTML = `${text} <i id="icon-sort" class="fas fa-sort-alpha-down"></i>`
+                obgTh.dataset.order = 'DESC';
+            }else {
+                obgTh.innerHTML = `${text} <i id="icon-sort" class="fas fa-sort-alpha-down-alt"></i>`
+                obgTh.dataset.order = 'ASC';
+            }
+
+            if (switchcount == 0 && whileCount <= 1) {
+                dir = obgTh.dataset.order;
+                switching = true;
+            }
+            whileCount++;
+        }
+    }
+}
+
+function populateItensTable (elementTableId, url, elementButtonId) {
+    if (!$(elementTableId).hasClass('show')) {
+        $('#modalLoading').modal('show');
+        $(`${elementTableId} table tbody`).empty();
+        //$(elementTableId).append('<div id="load-table" class="text-center my-3"><i class="fa fa-spinner fa-spin fa-3x"></i></div>');
+        $.get(url, response => {
+            let dataHtml = '';
+            $.each(response.dataHtml, (key, item) => {
+                dataHtml += item;
+            });
+            $(elementButtonId).find('i').removeClass('fa-plus').addClass('fa-minus');
+            $(`${elementTableId} table tbody`).append(dataHtml);
+        }).fail(() => {
+            $(elementButtonId).find('i').removeClass('fa-minus').addClass('fa-plus');
+            swal('', 'Erro ao buscar os registros', 'error');
+        }).always(() => {
+            setTimeout(()=>{
+                //$(elementTableId).find('#load-table').remove();
+                $('#modalLoading').modal('hide');
+            }, 200);
+        });
+    } else {
+        setTimeout(()=>{
+            $(elementButtonId).find('i').removeClass('fa-minus').addClass('fa-plus');
+            $('#modalLoading').modal('hide');
+        }, 300);
+    }
+}
+
+function checkInputsCourses(idForm = '') {
+    let isValid = true;
+
+    const valueDescricao =  $(`#${idForm} textarea[name="descricao"]`);
+    const text = $(valueDescricao).summernote('code').replace(/<\/?[^>]+(>|$)/g, "");
+
+    if (!text) {
+        swal('Preencha o campo:', 'Descrição', 'warning');
+        isValid = false;
+    }
+
+    $(`#${idForm} input, #${idForm} select`).each(function () {
+        if ($(this).prop("required") && ($(this).val() == '' || $(this).val() == null)) {
+            swal('Preencha o campo:', $(this).attr('data-name-campo-obr') || $(this).attr(''), 'warning');
+            $(this).focus();
+            isValid = false;
+        }
+    });
+
+    if (($(`#${idForm} #iniciovg`).val() == '')) {
+        swal('Preencha o campo:', 'Data de Início', 'warning');
+        $('#iniciovg').focus();
+        isValid = false;
+    }
+
+    if (($(`#${idForm} #fimvg`).val() != '') && ($('#fimvg').val() < $('#iniciovg').val())) {
+        swal('Preencha o campo:', 'A data de início não deve ser anterior a data de encerramento', 'warning');
+        $('#fimvg').focus();
+        isValid = false;
+
+    }
+
+    if (($(`#${idForm} #aprovacao`).val() != '') && ($(`#${idForm} #aprovacao`).val() < 1 || $(`#${idForm} #aprovacao`).val() > 100)) {
+        swal('Preencha o campo:', 'Porcentagem de aprovação inválida.<BR> <b>Por favor digite um valor em 1 e 100%', 'warning');
+        $('#aprovacao').val('');
+        $('#aprovacao').focus();
+        isValid = false;
+    }
+    return isValid;
+}
